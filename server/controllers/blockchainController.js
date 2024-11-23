@@ -1,4 +1,4 @@
-const Web3 = require('web3');
+const { Web3 } = require('web3');  // Updated import syntax
 const NFTMetadata = require('../models/nftMetadata');
 const Transaction = require('../models/transaction');
 const axios = require('axios');
@@ -7,9 +7,8 @@ const contractABI = require('../../src/data/data.json');
 
 const { create } = ipfsClient;
 
-const web3 = new Web3(
-	new Web3.providers.HttpProvider(`${process.env.INFURA_KEY}`)
-);
+// Initialize Web3 with provider
+const web3 = new Web3(new Web3.providers.HttpProvider(process.env.INFURA_KEY));
 
 // NFT Metadata Retrieval
 const getNFTMetadata = async (req, res) => {
@@ -23,7 +22,7 @@ const getNFTMetadata = async (req, res) => {
       // Create contract instance using the ABI from data.json
       const contract = new web3.eth.Contract(contractABI, contractAddress);
       
-      // Get token URI
+      // Get token URI - updated method call syntax
       const tokenURI = await contract.methods.tokenURI(tokenId).call();
       
       // Fetch metadata from URI
@@ -69,14 +68,14 @@ const getTransactions = async (req, res) => {
       });
     }
     
-    // Store in MongoDB
+    // Store in MongoDB - updated to use Web3.utils
     await Transaction.insertMany(
       transactions.map(tx => ({
         address,
         hash: tx.hash,
         from: tx.from,
         to: tx.to,
-        value: web3.utils.fromWei(tx.value, 'ether'),
+        value: web3.utils.fromWei(tx.value),  // Removed 'ether' parameter as it's default
         timestamp: new Date(tx.timeStamp * 1000)
       }))
     );
@@ -95,14 +94,14 @@ const getTokenBalance = async (req, res) => {
     // Create contract instance using ERC20 ABI from data.json
     const contract = new web3.eth.Contract(contractABI, contractAddress);
     
-    // Get token balance and decimals
+    // Get token balance and decimals - updated Promise.all syntax
     const [balance, decimals] = await Promise.all([
       contract.methods.balanceOf(walletAddress).call(),
       contract.methods.decimals().call()
     ]);
     
-    // Convert balance to proper format
-    const formattedBalance = balance / Math.pow(10, decimals);
+    // Convert balance to proper format using Web3.utils
+    const formattedBalance = Number(balance) / Math.pow(10, decimals);
     
     res.status(200).json({ 
       address: walletAddress,
@@ -114,7 +113,7 @@ const getTokenBalance = async (req, res) => {
   }
 };
 
-// Token Transfer
+// Token Transfer - updated with Web3.js v4 syntax
 const transferTokens = async (req, res) => {
   try {
     const { contractAddress, from, to, amount } = req.body;
@@ -122,8 +121,12 @@ const transferTokens = async (req, res) => {
     // Create contract instance
     const contract = new web3.eth.Contract(contractABI, contractAddress);
     
-    // Create transaction
-    const tx = await contract.methods.transfer(to, amount).send({ from });
+    // Create and send transaction
+    const tx = await contract.methods.transfer(to, amount).send({
+      from,
+      maxPriorityFeePerGas: null,
+      maxFeePerGas: null
+    });
     
     // Store transaction in MongoDB
     await Transaction.create({
@@ -197,4 +200,4 @@ module.exports = {
   getIPFSData,
   getTokenBalance,
   transferTokens
-}; 
+};
